@@ -127,9 +127,7 @@ def get_axons_to_query(
         axons_to_query.sort(key=lambda i: metagraph.E[i[0]], reverse=True)
     elif sort_type == SortType.INCENTIVE:
         axons_to_query.sort(key=lambda i: metagraph.I[i[0]], reverse=True)
-    elif sort_type == SortType.OTF_REWARD:
-        axons_to_query.sort(key=lambda i: metagraph.W[147][i[0]], reverse=True)
-
+        
     return [axon for uid, axon in axons_to_query][:n_axons]
 
 
