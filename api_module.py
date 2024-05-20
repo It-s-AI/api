@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO,
 
 
 RESYNC_METAGRAPH_PERIOD = 15  # in minutes
-NETUID = 87
+NETUID = 32
 
 
 def config() -> bt.config:
