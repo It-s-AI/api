@@ -1,10 +1,11 @@
 import requests
 
-url = "http://127.0.0.1:18889/detect/"
+# url = "http://65.108.32.152:18889/detect/"
+url = "http://127.0.0.1:13337/detect/"
 
 headers = {
     'Content-Type': 'application/json',
-    'auth': 'auth_key123'
+    'auth': '2CUg4QiCVMlyAuT9hCz'
 }
 
 body = {
@@ -17,4 +18,6 @@ body = {
 response = requests.post(url, json=body, headers=headers)
 
 print(f"Status Code: {response.status_code}")
-print(f"Response Body: {response.json()}")
+from pprint import pprint
+print(f"Response Body")
+pprint(response.json())

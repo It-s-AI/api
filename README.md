@@ -86,7 +86,12 @@ Responses objects are sorted by **SORT_TYPE** in descending order for "emission"
 {
   "responses": [
     {
-      "axon1_hotkey": ["prediction1", "prediction2"]
+      "coldkey": "SS58",
+      "hotkey": "SS58",
+      "emission": 0.0,
+      "incentive": 0.0, 
+      "uid": 255,
+      "predictions": [0.98, 0.03]
     }
   ]
 }

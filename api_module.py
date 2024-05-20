@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO,
 
 
 RESYNC_METAGRAPH_PERIOD = 15  # in minutes
-NETUID = 32
+NETUID = 87
 
 
 def config() -> bt.config:
@@ -133,7 +133,7 @@ def get_axons_to_query(
     elif sort_type == SortType.INCENTIVE:
         axons_to_query.sort(key=lambda i: metagraph.I[i[0]], reverse=True)
       
-    return [axon for uid, axon in axons_to_query][:n_axons]
+    return axons_to_query[:n_axons]
 
 
 @app.post("/detect/")
@@ -161,11 +161,12 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
             status_code=400
         )    
 
-    axons_to_query = get_axons_to_query(
+    axons_info_to_query = get_axons_to_query(
         vali.metagraph,
         request.SORT_TYPE,
         request.N_AXONS
     )
+    axons_to_query = [axon for uid, axon in axons_info_to_query]
 
     logging.info(f'Overall axons amount: {len(vali.metagraph.axons)}')
     logging.info(f'Axons to query: {len(axons_to_query)}')
@@ -182,9 +183,17 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
 
     logging.info(f'Responses: {responses}\n\n')
     result = []
-    for response, axon in zip(responses, axons_to_query):
-        # if response.predictions:
-        result.append({axon.hotkey: response.predictions})
+    for response, (uid, axon) in zip(responses, axons_info_to_query):
+        result.append(
+            {
+                'coldkey': axon.coldkey,
+                'hotkey': axon.hotkey,
+                'predictions': response.predictions,
+                'uid': uid,
+                'emission': vali.metagraph.E[uid].item(),
+                'incentive': vali.metagraph.I[uid].item()
+            }
+        )
 
     return JSONResponse(
         content={
