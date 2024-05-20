@@ -1,6 +1,5 @@
 import requests
 
-# url = "http://65.108.32.152:18889/detect/"
 url = "http://127.0.0.1:13337/detect/"
 
 headers = {
@@ -10,9 +9,10 @@ headers = {
 
 body = {
     "text": ["sample text 1", "sample text 2"],
-    "N_AXONS": 256,
-    "SORT_TYPE": "emission",
-    "TIMEOUT": 15,
+    "N_AXONS": 10,
+    "SORT_TYPE": "uid",
+    "TIMEOUT": 3,
+    "ORDERING": "asc"
 }
 
 response = requests.post(url, json=body, headers=headers)

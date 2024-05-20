@@ -54,6 +54,7 @@ class RequestObj(BaseModel):
     N_AXONS: int = 10
     SORT_TYPE: SortType = SortType.UID
     TIMEOUT: int = 3
+    ORDERING: str = "desc"
 
 
 class AuthKeyMiddleware(BaseHTTPMiddleware):
@@ -113,7 +114,8 @@ def shutdown_scheduler():
 def get_axons_to_query(
         metagraph: bt.metagraph,
         sort_type: SortType,
-        n_axons: int
+        n_axons: int,
+        ordering: str
         ) -> List[bt.axon]:
     axons = metagraph.axons
 
@@ -129,10 +131,11 @@ def get_axons_to_query(
         axons_to_query.append([uid, axons[uid]])
 
     if sort_type == SortType.EMISSION:
-        axons_to_query.sort(key=lambda i: metagraph.E[i[0]], reverse=True)
+        axons_to_query.sort(key=lambda i: metagraph.E[i[0]], reverse=True if ordering == 'desc' else False)
     elif sort_type == SortType.INCENTIVE:
-        axons_to_query.sort(key=lambda i: metagraph.I[i[0]], reverse=True)
-      
+        axons_to_query.sort(key=lambda i: metagraph.I[i[0]], reverse=True if ordering == 'desc' else False)
+    elif sort_type == SortType.UID:
+        axons_to_query.sort(key=lambda i: i[0], reverse=True if ordering == 'desc' else False)
     return axons_to_query[:n_axons]
 
 
@@ -161,10 +164,18 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
             status_code=400
         )    
 
+    if request.ORDERING not in ['asc', 'desc']:
+        logging.error('Invalid ORDERING value')
+        return JSONResponse(
+            content={"error": f"Invalid ORDERING value: {request.ORDERING}. Must be one of the ['asc', 'desc']"},
+            status_code=400
+        )
+
     axons_info_to_query = get_axons_to_query(
         vali.metagraph,
         request.SORT_TYPE,
-        request.N_AXONS
+        request.N_AXONS,
+        request.ORDERING
     )
     axons_to_query = [axon for uid, axon in axons_info_to_query]
 

@@ -72,16 +72,19 @@ This endpoint accepts a JSON payload to query axons based on the provided parame
   "text": ["sample text", "another text"],
   "N_AXONS": 10,
   "SORT_TYPE": "uid",
-  "TIMEOUT": 3
+  "TIMEOUT": 3, 
+  "ORDERING": "desc"
 }
 ```
 - **text**: A list of texts to be processed.
 - **N_AXONS**: Number of axons to query (must be between 1 and 256).
-- **SORT_TYPE**: The type of sorting to use `[emission, incentive, uid]` .
-- **TIMEOUT**: Timeout duration for the query. If you want to query all miners it's better to set this value to 60.
+- **SORT_TYPE**: The type of sorting to use `[emission, incentive, uid]`.
+- **TIMEOUT**: Timeout duration for the query. Varies from the length of the text submitted.
+- **ORDERING**: Order of the response objects sorted by **SORT_TYPE**.
+
 
 **Response:**  
-Responses objects are sorted by **SORT_TYPE** in descending order for "emission" and "incentive". By default it's sorted by UIDs in ascending order.
+Response objects are sorted by **SORT_TYPE** in order provided with **ORDERING** (default value is "desc").
 ```json
 {
   "responses": [
