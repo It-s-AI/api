@@ -23,12 +23,12 @@ git clone git@github.com:It-s-AI/api.git
 
 2.  Navigate to the project directory:
 ```bash
-cd api_module
+cd api
 ```
 
 3.  Create a virtual environment (recommended):
 ```bash
-python -m venv venv
+python3 -m venv venv
 source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
 ```
 

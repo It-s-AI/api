@@ -1,22 +1,15 @@
 from pydantic import BaseModel
 import protocol
-import numpy as np
-import asyncio
 import pytz
 import argparse
 import logging
-import os
-import pandas as pd
 from typing import List
+from enum import Enum
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from enum import Enum
-
-import argparse
-
 
 import bittensor as bt
 import asyncio
@@ -27,7 +20,8 @@ logging.basicConfig(level=logging.INFO,
                     filename='app.log',
                     filemode='a')
 
-RESYNC_METAGRAPH_PERIOD = 15 # in minutes
+
+RESYNC_METAGRAPH_PERIOD = 15  # in minutes
 NETUID = 32
 
 
@@ -35,15 +29,17 @@ def config() -> bt.config:
     """
     Returns the configuration object.
     """
-    parser = argparse.ArgumentParser(description="Run the API Server for Subnet 32")
+    parser = argparse.ArgumentParser(
+        description="Run the API Server for Subnet 32"
+    )
     bt.wallet.add_args(parser)
     bt.subtensor.add_args(parser)
     bt.logging.add_args(parser)
     bt.axon.add_args(parser)
 
-    parser.add_argument("--auth_key", 
+    parser.add_argument("--auth_key",
                         type=str, default="",
-                        help="Auth key for authorization.") 
+                        help="Auth key for authorization.")
     return bt.config(parser)
 
 
@@ -67,10 +63,14 @@ class AuthKeyMiddleware(BaseHTTPMiddleware):
 
         if given_auth_key != vali.config.auth_key:
             logging.error(f'Wrong key {given_auth_key}')
-            return JSONResponse(status_code=401, content={"detail": "Unauthorized"})
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Unauthorized"}
+            )
 
         response = await call_next(request)
         return response
+
 
 scheduler = AsyncIOScheduler(timezone=pytz.utc)
 
@@ -91,12 +91,17 @@ class Validator:
             self.metagraph.sync(subtensor=self.subtensor)
             logging.info("Syncing metagraph")
 
+
 vali = Validator()
 
 
 @app.on_event("startup")
 def start_scheduler():
-    scheduler.add_job(vali.sync_metagraph, "interval", minutes=RESYNC_METAGRAPH_PERIOD)
+    scheduler.add_job(
+        vali.sync_metagraph,
+        "interval",
+        minutes=RESYNC_METAGRAPH_PERIOD
+    )
     scheduler.start()
 
 
@@ -109,7 +114,7 @@ def get_axons_to_query(
         metagraph: bt.metagraph,
         sort_type: SortType,
         n_axons: int
-    ) -> List[bt.axon]:
+        ) -> List[bt.axon]:
     axons = metagraph.axons
 
     axons_to_query = []
@@ -127,7 +132,7 @@ def get_axons_to_query(
         axons_to_query.sort(key=lambda i: metagraph.E[i[0]], reverse=True)
     elif sort_type == SortType.INCENTIVE:
         axons_to_query.sort(key=lambda i: metagraph.I[i[0]], reverse=True)
-        
+      
     return [axon for uid, axon in axons_to_query][:n_axons]
 
 
@@ -154,9 +159,13 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
         return JSONResponse(
             content={"error": f"Invalid TIMEOUT value: {request.N_AXONS}. Must be greater than 0"},
             status_code=400
-        )        
+        )    
 
-    axons_to_query = get_axons_to_query(vali.metagraph, request.SORT_TYPE, request.N_AXONS)
+    axons_to_query = get_axons_to_query(
+        vali.metagraph,
+        request.SORT_TYPE,
+        request.N_AXONS
+    )
 
     logging.info(f'Overall axons amount: {len(vali.metagraph.axons)}')
     logging.info(f'Axons to query: {len(axons_to_query)}')
@@ -164,13 +173,13 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
     d = bt.dendrite(wallet=vali.wallet)
 
     syn = protocol.TextSynapse(texts=request.text, predictions=[])
-    
+
     responses = await d(
-        axons_to_query, 
+        axons_to_query,
         syn,
-        deserialize=True, 
+        deserialize=True,
         timeout=request.TIMEOUT)
-    
+
     logging.info(f'Responses: {responses}\n\n')
     result = []
     for response, axon in zip(responses, axons_to_query):
@@ -180,8 +189,6 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
     return JSONResponse(
         content={
             "responses": result
-        }, 
+        },
         status_code=200
     )
-
-
