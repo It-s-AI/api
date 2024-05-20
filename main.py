@@ -8,6 +8,6 @@ if __name__ == "__main__":
     
     args, unknown_args = parser.parse_known_args()
 
-    sys.argv = ['run.py'] + unknown_args
+    sys.argv = ['main.py'] + unknown_args
 
     uvicorn.run("api_module:app", host="0.0.0.0", port=args.port, reload=False)
