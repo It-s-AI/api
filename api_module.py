@@ -83,13 +83,22 @@ app.add_middleware(AuthKeyMiddleware)
 class Validator:
     def __init__(self):
         self.config = config()
-        self.initialize_components()
+        self.initialize_components(first_run=True)
 
-    def initialize_components(self):
+    def initialize_components(self, first_run=False):
+        if not first_run:
+            previous_block = self.metagraph.block
+
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.metagraph = bt.metagraph(netuid=NETUID, sync=False, lite=False)
         self.metagraph.sync(subtensor=self.subtensor)
+
+        if not first_run and previous_block == self.metagraph.block:
+            logging.critical(
+                "METAGRAPH HASNT CHANGED\n"
+                f"Last synced block: {previous_block.item()}")
+            return
 
     async def sync_metagraph(self):
         async with lock:
