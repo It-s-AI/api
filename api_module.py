@@ -5,6 +5,7 @@ import argparse
 import logging
 from typing import List
 from enum import Enum
+import time
 
 from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -63,7 +64,7 @@ class AuthKeyMiddleware(BaseHTTPMiddleware):
         logging.info(f'Trying to connect with {given_auth_key}')
 
         if given_auth_key != vali.config.auth_key:
-            logging.error(f'Wrong key {given_auth_key}')
+            logging.error(f'Wrong key: {given_auth_key}')
             return JSONResponse(
                 status_code=401,
                 content={"detail": "Unauthorized"}
@@ -82,15 +83,19 @@ app.add_middleware(AuthKeyMiddleware)
 class Validator:
     def __init__(self):
         self.config = config()
+        self.initialize_components()
+
+    def initialize_components(self):
         self.wallet = bt.wallet(config=self.config)
         self.subtensor = bt.subtensor(config=self.config)
         self.metagraph = bt.metagraph(netuid=NETUID, sync=False, lite=False)
         self.metagraph.sync(subtensor=self.subtensor)
-    
+
     async def sync_metagraph(self):
         async with lock:
-            self.metagraph.sync(subtensor=self.subtensor)
-            logging.info("Syncing metagraph")
+            s = time.time()
+            self.initialize_components()
+            logging.info(f"Syncing metagraph in {time.time() - s} seconds.")
 
 
 vali = Validator()
@@ -130,12 +135,15 @@ def get_axons_to_query(
 
         axons_to_query.append([uid, axons[uid]])
 
+    ordering_type = True if ordering == 'desc' else False
     if sort_type == SortType.EMISSION:
-        axons_to_query.sort(key=lambda i: metagraph.E[i[0]], reverse=True if ordering == 'desc' else False)
+        axons_to_query.sort(key=lambda i: metagraph.E[i[0]],
+                            reverse=ordering_type)
     elif sort_type == SortType.INCENTIVE:
-        axons_to_query.sort(key=lambda i: metagraph.I[i[0]], reverse=True if ordering == 'desc' else False)
+        axons_to_query.sort(key=lambda i: metagraph.I[i[0]],
+                            reverse=ordering_type)
     elif sort_type == SortType.UID:
-        axons_to_query.sort(key=lambda i: i[0], reverse=True if ordering == 'desc' else False)
+        axons_to_query.sort(key=lambda i: i[0], reverse=ordering_type)
     return axons_to_query[:n_axons]
 
 
@@ -146,28 +154,44 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
     if request.SORT_TYPE not in SortType:
         logging.error('Invalid SORT_TYPE value')
         return JSONResponse(
-            content={"error": f"Invalid SORT_TYPE value: {request.SORT_TYPE}. Must be one of {list(SortType.__members__.keys())}"},
+            content={
+                "error":
+                    f"Invalid SORT_TYPE value: {request.SORT_TYPE}."
+                    "Must be one of {list(SortType.__members__.keys())}"
+                },
             status_code=400
         )
 
     if not (1 <= request.N_AXONS <= 256):
         logging.error('Invalid N_AXONS value')
         return JSONResponse(
-            content={"error": f"Invalid N_AXONS value: {request.N_AXONS}. Must be in range [1; 256]"},
+            content={
+                "error":
+                    f"Invalid N_AXONS value: {request.N_AXONS}."
+                    "Must be in range [1; 256]"
+            },
             status_code=400
         )
 
     if request.TIMEOUT < 0:
         logging.error('Invalid TIMEOUT value')
         return JSONResponse(
-            content={"error": f"Invalid TIMEOUT value: {request.N_AXONS}. Must be greater than 0"},
+            content={
+                "error":
+                    f"Invalid TIMEOUT value: {request.N_AXONS}."
+                    "Must be greater than 0"
+            },
             status_code=400
-        )    
+        )
 
     if request.ORDERING not in ['asc', 'desc']:
         logging.error('Invalid ORDERING value')
         return JSONResponse(
-            content={"error": f"Invalid ORDERING value: {request.ORDERING}. Must be one of the ['asc', 'desc']"},
+            content={
+                "error":
+                    f"Invalid ORDERING value: {request.ORDERING}."
+                    "Must be one of the ['asc', 'desc']"
+            },
             status_code=400
         )
 
@@ -177,10 +201,10 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
         request.N_AXONS,
         request.ORDERING
     )
-    axons_to_query = [axon for uid, axon in axons_info_to_query]
+    axons_to_query = [axon for _, axon in axons_info_to_query]
 
-    logging.info(f'Overall axons amount: {len(vali.metagraph.axons)}')
-    logging.info(f'Axons to query: {len(axons_to_query)}')
+    logging.info(
+        f'Axons to query: {len(axons_to_query)}/{len(vali.metagraph.axons)}')
 
     d = bt.dendrite(wallet=vali.wallet)
 
@@ -192,7 +216,7 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
         deserialize=True,
         timeout=request.TIMEOUT)
 
-    logging.info(f'Responses: {responses}\n\n')
+    logging.info(f'Responses received: {responses}\n\n')
     result = []
     for response, (uid, axon) in zip(responses, axons_info_to_query):
         result.append(
@@ -206,6 +230,7 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
             }
         )
 
+    logging.info(f'Answer to user: {result}\n\n')
     return JSONResponse(
         content={
             "responses": result
