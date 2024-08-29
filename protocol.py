@@ -18,8 +18,6 @@ import pydantic
 from typing import List, Optional
 import bittensor as bt
 
-from detection import __version__
-
 
 class TextSynapse(bt.Synapse):
     """
