@@ -73,13 +73,15 @@ This endpoint accepts a JSON payload to query axons based on the provided parame
   "N_AXONS": 10,
   "SORT_TYPE": "uid",
   "TIMEOUT": 3, 
-  "ORDERING": "desc"
+  "ORDERING": "desc",
+  "OFFSET": 0
 }
 ```
 - **text**: A list of texts to be processed.
 - **N_AXONS**: Number of axons to query (must be between 1 and 256).
 - **SORT_TYPE**: The type of sorting to use `[emission, incentive, uid]`.
 - **TIMEOUT**: Timeout duration for the query. Varies from the length of the text submitted.
+- **OFFSET**: Integer number that is used to shift output by that length.
 - **ORDERING**: Order of the response objects sorted by **SORT_TYPE**.
 
 
