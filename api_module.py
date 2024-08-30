@@ -325,12 +325,11 @@ async def query_axons_endpoint(request: RequestDetectObj) -> JSONResponse:
         )
 
     if not (0 <= request.OFFSET <= 255):
-        error_msg = f'Invalid ORDERING value: {request.OFFSET}'
+        error_msg = f'Invalid  value: {request.OFFSET}'
         logging.error(error_msg)
         return JSONResponse(
             content={
-                "error":
-                    f'Invalid ORDERING value: {request.OFFSET}'
+                "error": error_msg
             },
             status_code=400
         )
