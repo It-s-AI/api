@@ -176,9 +176,9 @@ def get_axons_to_query(
         # if not axons[uid].is_serving:
         #     continue
 
-        # if metagraph.validator_permit[uid]:
-        #     if metagraph.S[uid] > 1_000:
-        #         continue
+        if metagraph.validator_permit[uid]:
+            if metagraph.S[uid] > 1_000:
+                continue
 
         axons_to_query.append([uid, axons[uid]])
 
