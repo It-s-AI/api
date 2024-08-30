@@ -12,6 +12,10 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
+from constants import (
+    SUBNET_VERSION, RESYNC_METAGRAPH_PERIOD, NETUID
+)
+
 import bittensor as bt
 import asyncio
 lock = asyncio.Lock()
@@ -21,9 +25,6 @@ logging.basicConfig(level=logging.INFO,
                     filename='app.log',
                     filemode='a')
 
-
-RESYNC_METAGRAPH_PERIOD = 15  # in minutes
-NETUID = 32
 
 
 def config() -> bt.config:
@@ -214,10 +215,15 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
 
     logging.info(
         f'Axons to query: {len(axons_to_query)}/{len(vali.metagraph.axons)}')
+    print("axons:", axons_to_query)
 
     d = bt.dendrite(wallet=vali.wallet)
 
-    syn = protocol.TextSynapse(texts=request.text, predictions=[])
+    syn = protocol.TextSynapse(
+        texts=request.text,
+        predictions=[],
+        version=SUBNET_VERSION
+        )
 
     responses = await d(
         axons_to_query,

@@ -1,10 +1,10 @@
 import requests
 
-url = "http://127.0.0.1:13337/detect/"
+url = "http://0.0.0.0:13337/detect/"
 
 headers = {
     'Content-Type': 'application/json',
-    'auth': '2CUg4QiCVMlyAuT9hCz'
+    'auth': 'auth_key'
 }
 
 body = {
@@ -12,7 +12,7 @@ body = {
     "N_AXONS": 10,
     "SORT_TYPE": "uid",
     "TIMEOUT": 3,
-    "ORDERING": "asc"
+    "ORDERING": "desc"
 }
 
 response = requests.post(url, json=body, headers=headers)
