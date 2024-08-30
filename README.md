@@ -100,6 +100,41 @@ Response objects are sorted by **SORT_TYPE** in order provided with **ORDERING**
 }
 ```
 
+
+**POST /detect_uids/**  
+This endpoint accepts a list of uids to query axons based on the provided uid numbers.
+
+**Request Body:**
+```json
+{
+  "text": ["sample text", "another text"],
+  "uids": [1, 2, 156, 16],
+  "TIMEOUT": 3, 
+}
+```
+- **text**: A list of texts to be processed.
+- **uids**: A list of uids that need to be queried.
+- **TIMEOUT**: Timeout duration for the query. Varies from the length of the text submitted.
+
+
+**Response:**  
+Response objects are sorted by **SORT_TYPE** in order provided with **ORDERING** (default value is "desc").
+```json
+{
+  "responses": [
+    {
+      "coldkey": "SS58",
+      "hotkey": "SS58",
+      "emission": 0.0,
+      "incentive": 0.0, 
+      "uid": 255,
+      "predictions": [0.98, 0.03]
+    }
+  ]
+}
+```
+
+
 ## Testing
 
 The `test.py` script is provided to test the functionality of the **/detect/** endpoint.

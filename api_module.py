@@ -6,6 +6,8 @@ import logging
 from typing import List
 from enum import Enum
 import time
+import requests
+import re
 
 from fastapi import FastAPI
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -13,7 +15,7 @@ from starlette.responses import JSONResponse
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from constants import (
-    SUBNET_VERSION, RESYNC_METAGRAPH_PERIOD, NETUID
+    version_url, RESYNC_METAGRAPH_PERIOD, NETUID
 )
 
 import bittensor as bt
@@ -51,16 +53,24 @@ class SortType(str, Enum):
     UID = "uid"
 
 
-class RequestObj(BaseModel):
+class BaseRequestObj(BaseModel):
     text: list
+    TIMEOUT: int = 3
+
+
+class RequestDetectObj(BaseRequestObj):
     N_AXONS: int = 10
     SORT_TYPE: SortType = SortType.UID
-    TIMEOUT: int = 3
     ORDERING: str = "desc"
+    OFFSET: int = 0
+
+
+class RequestUidsObj(BaseRequestObj):
+    uids: List = []
 
 
 class AuthKeyMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: RequestObj, call_next):
+    async def dispatch(self, request: BaseRequestObj, call_next):
         given_auth_key = request.headers.get('Auth')
         logging.info(f'Trying to connect with {given_auth_key}')
 
@@ -94,12 +104,31 @@ class Validator:
         self.subtensor = bt.subtensor(config=self.config)
         self.metagraph = bt.metagraph(netuid=NETUID, sync=False, lite=False)
         self.metagraph.sync(subtensor=self.subtensor)
+        self.version = self.parse_versions()
 
         if not first_run and previous_block == self.metagraph.block:
             logging.critical(
                 "METAGRAPH HASNT CHANGED\n"
                 f"Last synced block: {previous_block.item()}")
             return
+
+    def parse_versions(self):
+        version = "10.0.0"
+
+        bt.logging.info(f"Parsing versions...")
+        response = requests.get(version_url)
+        bt.logging.info(f"Response: {response.status_code}")
+        if response.status_code == 200:
+            content = response.text
+
+            version_pattern = r"__version__\s*=\s*['\"]([^'\"]+)['\"]"
+
+            try:
+                version = re.search(version_pattern, content).group(1)
+                bt.logging.info(f'Fetched version: {version}')
+            except AttributeError as e:
+                bt.logging.error(f"While parsing versions got error: {e}")
+        return version
 
     async def sync_metagraph(self):
         async with lock:
@@ -126,22 +155,30 @@ def shutdown_scheduler():
     scheduler.shutdown()
 
 
+def get_axons_by_uids(
+    metagraph: bt.metagraph,
+    uids: List[int]
+) -> List[bt.axon]:
+    return [[uid, metagraph.axons[uid]] for uid in uids]
+
+
 def get_axons_to_query(
         metagraph: bt.metagraph,
         sort_type: SortType,
         n_axons: int,
-        ordering: str
+        ordering: str,
+        offset: int
         ) -> List[bt.axon]:
     axons = metagraph.axons
 
     axons_to_query = []
     for uid in range(len(axons)):
-        if not axons[uid].is_serving:
-            continue
+        # if not axons[uid].is_serving:
+        #     continue
 
-        if metagraph.validator_permit[uid]:
-            if metagraph.S[uid] > 1_000:
-                continue
+        # if metagraph.validator_permit[uid]:
+        #     if metagraph.S[uid] > 1_000:
+        #         continue
 
         axons_to_query.append([uid, axons[uid]])
 
@@ -154,11 +191,93 @@ def get_axons_to_query(
                             reverse=ordering_type)
     elif sort_type == SortType.UID:
         axons_to_query.sort(key=lambda i: i[0], reverse=ordering_type)
-    return axons_to_query[:n_axons]
+    return axons_to_query[offset:offset+n_axons]
+
+
+@app.post("/detect_uids/")
+async def query_axons_endpoint(request: RequestUidsObj) -> JSONResponse:
+    logging.info(f'Incoming request with data: {request.json()}')
+
+    if not isinstance(request.uids, List):
+        error_msg = f"Invalid UIDS field type: {type(request.uids)}. It should be list"
+        logging.error(error_msg)
+        return JSONResponse(
+            content={
+                "error": error_msg
+                    
+            },
+            status_code=400
+        )
+
+    for uid in request.uids:
+        if not isinstance(uid, int):
+            error_msg = f"One of the elements has invalid type: {type(uid)}. It should be integer"
+            logging.error(error_msg)
+            return JSONResponse(
+                content={
+                    "error": error_msg                        
+                },
+                status_code=400
+            )
+
+    if request.TIMEOUT < 0:
+        error_msg = f'Invalid TIMEOUT value: {request.N_AXONS}'
+        logging.error(error_msg)
+        return JSONResponse(
+            content={
+                "error": error_msg
+            },
+            status_code=400
+        )    
+
+    axons_info_to_query = get_axons_by_uids(
+        vali.metagraph,
+        request.uids
+    )
+    axons_to_query = [axon for _, axon in axons_info_to_query]
+
+    logging.info(
+        f'Axons to query: {len(axons_to_query)}/{len(vali.metagraph.axons)}')
+
+    d = bt.dendrite(wallet=vali.wallet)
+
+    syn = protocol.TextSynapse(
+        texts=request.text,
+        predictions=[],
+        version=vali.version
+    )
+
+    responses = await d(
+        axons_to_query,
+        syn,
+        deserialize=True,
+        timeout=request.TIMEOUT)
+
+    logging.info(f'Responses received: {responses}\n\n')
+    result = []
+    for response, (uid, axon) in zip(responses, axons_info_to_query):
+        result.append(
+            {
+                'coldkey': axon.coldkey,
+                'hotkey': axon.hotkey,
+                'predictions': response.predictions,
+                'uid': uid,
+                'emission': vali.metagraph.E[uid].item(),
+                'incentive': vali.metagraph.I[uid].item()
+            }
+        )
+
+    logging.info(f'Answer to user: {result}\n\n')
+    return JSONResponse(
+        content={
+            "responses": result
+        },
+        status_code=200
+    )
 
 
 @app.post("/detect/")
-async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
+async def query_axons_endpoint(request: RequestDetectObj) -> JSONResponse:
     logging.info(f'Incoming request with data: {request.json()}')
 
     if request.SORT_TYPE not in SortType:
@@ -167,7 +286,7 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
             content={
                 "error":
                     f"Invalid SORT_TYPE value: {request.SORT_TYPE}."
-                    "Must be one of {list(SortType.__members__.keys())}"
+                    f"Must be one of {list(SortType.__members__.keys())}"
                 },
             status_code=400
         )
@@ -205,11 +324,23 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
             status_code=400
         )
 
+    if not (0 <= request.OFFSET <= 255):
+        error_msg = f'Invalid ORDERING value: {request.OFFSET}'
+        logging.error(error_msg)
+        return JSONResponse(
+            content={
+                "error":
+                    f'Invalid ORDERING value: {request.OFFSET}'
+            },
+            status_code=400
+        )
+
     axons_info_to_query = get_axons_to_query(
         vali.metagraph,
         request.SORT_TYPE,
         request.N_AXONS,
-        request.ORDERING
+        request.ORDERING,
+        request.OFFSET
     )
     axons_to_query = [axon for _, axon in axons_info_to_query]
 
@@ -222,8 +353,8 @@ async def query_axons_endpoint(request: RequestObj) -> JSONResponse:
     syn = protocol.TextSynapse(
         texts=request.text,
         predictions=[],
-        version=SUBNET_VERSION
-        )
+        version=vali.version
+    )
 
     responses = await d(
         axons_to_query,

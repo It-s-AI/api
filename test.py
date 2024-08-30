@@ -4,7 +4,7 @@ url = "http://0.0.0.0:13337/detect/"
 
 headers = {
     'Content-Type': 'application/json',
-    'auth': 'auth_key'
+    'auth': 'keykey'
 }
 
 body = {
@@ -12,7 +12,8 @@ body = {
     "N_AXONS": 10,
     "SORT_TYPE": "uid",
     "TIMEOUT": 3,
-    "ORDERING": "desc"
+    "ORDERING": "desc",
+    "OFFSET": 0
 }
 
 response = requests.post(url, json=body, headers=headers)
